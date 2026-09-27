@@ -1,0 +1,14 @@
+# 실행하면 생기는 데이터. 저장소에는 올리지 않는다.
+data/
+data-backup-*/
+*.csv
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
