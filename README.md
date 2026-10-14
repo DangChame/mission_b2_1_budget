@@ -115,7 +115,7 @@ budget_app/
   __main__.py      python -m budget_app 진입점
   cli.py           명령줄 해석 + 화면 출력      ← print / input 은 여기서만
   service.py       규칙 검증 + 계산
-  repository.py    파일 읽기·쓰기              ← open 은 여기서만
+  repository.py    앱 데이터 저장·조회          ← data/*.jsonl 은 여기서만
   models.py        데이터 구조 (dataclass)
   decorators.py    로그 · 시간 측정 · 예외 처리
   prompts.py       대화형 입력 + 재입력
@@ -137,8 +137,13 @@ models.py     무엇을 다루나          (데이터 모양)
 ```
 
 **위 계층은 아래를 알지만, 아래는 위를 모릅니다.**
-`service.py` 에는 `print` 가 없고 `repository.py` 에는 규칙이 없습니다.
+`service.py` 에는 `print` 가 하나도 없고, `repository.py` 에는 규칙이 하나도 없습니다.
 그래서 화면을 웹으로 바꾸면 `cli.py` 만, 저장을 DB로 바꾸면 `repository.py` 만 고치면 됩니다.
+
+> **예외가 하나 있습니다.** CSV `import` / `export` 는 `service.py` 에서 직접 파일을 엽니다.
+> `data/` 안의 앱 데이터가 아니라 **사용자가 그때그때 경로를 지정하는 외부 파일**이기 때문입니다.
+> `repository` 는 "이 앱이 어디에 데이터를 두는가"를 책임지는 자리라,
+> 바깥에서 들어오고 나가는 일회성 파일까지 맡기면 역할이 흐려집니다.
 
 ---
 
