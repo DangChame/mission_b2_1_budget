@@ -1,7 +1,7 @@
 """데이터 모델 — 이 프로그램이 다루는 데이터의 모양을 정한다.
 
 과제 요구사항 2번: dataclass 또는 그에 준하는 구조, 최소 2개 이상의 클래스.
-여기서는 Transaction / Category / Budget / RecurringRule 네 개를 둔다.
+여기서는 Transaction / Category / Budget 세 개를 둔다.
 
 dataclass를 쓰는 이유
     class Transaction:
@@ -111,45 +111,6 @@ class Budget:
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> "Budget":
         return cls(month=str(raw["month"]), amount=int(raw["amount"]))
-
-
-@dataclass
-class RecurringRule:
-    """매달 반복되는 내역 규칙. (보너스 2)
-
-    예: 매달 25일에 월세 500000원 지출
-    """
-
-    id: str          # RC-000001
-    day: int         # 1~31
-    type: str
-    amount: int
-    category: str
-    memo: str = ""
-    tags: list[str] = field(default_factory=list)
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "day": self.day,
-            "type": self.type,
-            "amount": self.amount,
-            "category": self.category,
-            "memo": self.memo,
-            "tags": self.tags,
-        }
-
-    @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "RecurringRule":
-        return cls(
-            id=str(raw["id"]),
-            day=int(raw["day"]),
-            type=str(raw["type"]),
-            amount=int(raw["amount"]),
-            category=str(raw["category"]),
-            memo=str(raw.get("memo", "")),
-            tags=list(raw.get("tags", [])),
-        )
 
 
 def is_valid_date(text: str) -> bool:

@@ -1,12 +1,12 @@
 # 나만의 용돈 기입장
 
-코디세이 AI 올인원 2기 · AI 도구학습 · **B2-1** (Python과 Git 심화)
+코디세이 AI 올인원 2기 · AI 도구학습 · **B2-1** (Python과 Git 심화) · **필수 미션**
 
 터미널에서 쓰는 가계부입니다. 수입·지출을 기록하고, 검색하고, 월별로 요약하고,
 예산을 넘으면 경고합니다. **표준 라이브러리만 사용합니다** — `pip install` 할 것이 없습니다.
 
 ```
-$ python -m budget_app add
+$ python3 -m budget_app add
 날짜(YYYY-MM-DD): 2024-01-15
 타입(income/expense): expense
 카테고리: food
@@ -15,6 +15,8 @@ $ python -m budget_app add
 태그(쉼표로 구분, 없으면 엔터): meal
 [저장 완료] id=TX-000001
 ```
+
+> **보너스 과제는 하지 않았습니다.** 과제 PDF의 필수 요구사항만 구현했습니다.
 
 ---
 
@@ -36,7 +38,7 @@ python3 -m budget_app --help
 처음 실행하면 `data/` 폴더와 저장 파일이 자동으로 만들어지고, 기본 카테고리 5개가 들어갑니다.
 
 ```bash
-python3 -m unittest discover -s tests -t .    # 테스트 62개
+python3 -m unittest discover -s tests -t .    # 테스트 53개
 ```
 
 ---
@@ -57,8 +59,6 @@ python3 -m unittest discover -s tests -t .    # 테스트 62개
 | `category add / list / remove` | 카테고리 관리 |
 | `export --out FILE --month` | CSV 내보내기 |
 | `import --from FILE` | CSV 가져오기 |
-| `backup` | data 폴더 백업 *(보너스)* |
-| `recurring add / list / remove / apply` | 매달 반복 내역 *(보너스)* |
 
 공통 옵션 — `--data-dir DIR` (저장 폴더 변경), `--verbose` (실행 시간 표시)
 
@@ -77,7 +77,7 @@ python3 -m unittest discover -s tests -t .    # 테스트 62개
 ### 사용 예
 
 ```bash
-python3 -m budget_app list --limit 5
+python3 -m budget_app list --limit 3
 python3 -m budget_app search --from 2024-01-01 --to 2024-01-31 --type expense
 python3 -m budget_app search --tag meal --q 점심
 python3 -m budget_app budget set --month 2024-01 --amount 500000
@@ -87,25 +87,28 @@ python3 -m budget_app import --from 2024-01.csv
 ```
 
 ```
+$ python3 -m budget_app list --limit 3
+TX-000001 | 2024-01-15 | expense | food | 15000 | 점심
+TX-000002 | 2024-01-14 | income | salary | 3000000 | 1월 월급
+TX-000003 | 2024-01-12 | expense | transport | 20000 | 택시
+
 $ python3 -m budget_app summary --month 2024-01 --top 3
-총 수입: 3,000,000원
-총 지출: 543,000원
-잔액: 2,457,000원
-예산: 500,000원 (사용률 108.6%)
-       [########################]
-[경고] 예산을 43,000원 초과했습니다.
+총 수입: 3000000원
+총 지출: 185000원
+잔액: 2815000원
+예산: 500000원 (사용률 37.0%)
 
 지출 TOP 3
-1) rent 500,000원
-2) food 23,000원
-3) transport 20,000원
+1) rent 150000원
+2) transport 20000원
+3) food 15000원
 ```
 
 ---
 
 ## 구조
 
-과제 요구사항이 **최소 3개 모듈**을 요구합니다. 책임에 따라 8개로 나눴습니다.
+과제 요구사항이 **최소 3개 모듈**을 요구합니다. 책임에 따라 7개로 나눴습니다.
 
 ```
 budget_app/
@@ -115,11 +118,10 @@ budget_app/
   repository.py    파일 읽기·쓰기              ← open 은 여기서만
   models.py        데이터 구조 (dataclass)
   decorators.py    로그 · 시간 측정 · 예외 처리
-  formatting.py    표 정렬 출력
   prompts.py       대화형 입력 + 재입력
   errors.py        사용자에게 보여줄 오류 정의
 tests/
-  test_budget_app.py   테스트 62개
+  test_budget_app.py   테스트 53개
 ```
 
 계층을 이렇게 잡았습니다.
@@ -142,13 +144,12 @@ models.py     무엇을 다루나          (데이터 모양)
 
 ## 저장 방식
 
-**JSONL** 을 골랐습니다. 파일은 네 개로 나눕니다.
+**JSONL** 을 골랐습니다. 파일은 세 개로 나눕니다. (요구사항 3번: 3개 이상)
 
 ```
 data/transactions.jsonl    거래 내역
 data/categories.jsonl      카테고리
 data/budgets.jsonl         월 예산
-data/recurring.jsonl       반복 규칙 (보너스)
 data/app.log               실행 로그
 ```
 
@@ -203,8 +204,10 @@ CSV 스키마는 과제 요구사항대로 고정했습니다. UTF-8, 머리글 
 
 ### 2. 데코레이터 — 공통 관심사를 한곳에
 
-명령 함수 15개가 전부 로그를 남기고 시간을 잽니다. 그 코드를 함수마다 복사하면
-로그 형식을 바꿀 때 15군데를 고쳐야 합니다.
+요구사항 12번이 *"공통 관심사 데코레이터를 1개 이상 구현하고 실제 적용"* 입니다.
+
+명령 함수 10개가 전부 로그를 남기고 시간을 잽니다. 그 코드를 함수마다 복사하면
+로그 형식을 바꿀 때 10군데를 고쳐야 합니다.
 
 ```python
 @log_call      # 언제 무슨 명령이 실행됐는지 data/app.log 에
@@ -216,8 +219,10 @@ def cmd_add(svc, args): ...
 
 ### 3. 원자적 교체 — 쓰다가 죽어도 데이터가 안 날아갑니다
 
-`update` / `delete` 는 파일을 다시 씁니다. 원본에 바로 쓰다가 프로그램이 죽으면
-**파일이 반만 남아서 지금까지 쌓은 내역을 통째로 잃습니다.**
+요구사항 6번이 *"update/delete는 전체 재작성 / 임시 파일 / **원자적 교체(권장)** 등 안정성을 고려"* 입니다.
+권장 방식인 원자적 교체를 택했습니다.
+
+원본에 바로 쓰다가 프로그램이 죽으면 **파일이 반만 남아서 지금까지 쌓은 내역을 통째로 잃습니다.**
 
 ```python
 1) .tmp 파일에 전부 쓴다        ← 실패해도 원본은 멀쩡
@@ -270,7 +275,7 @@ python3 -m unittest discover -s tests -t .
 ```
 
 ```
-Ran 62 tests in 0.327s
+Ran 53 tests in 0.32s
 OK
 ```
 
@@ -278,25 +283,7 @@ OK
 
 검사하는 것 — 날짜·금액·타입·카테고리 검증, 윤년, id 채번, 최신순 정렬,
 검색 조건 조합, 예산 초과 감지, 카테고리 삭제 규칙, CSV 왕복(export→import),
-**스트리밍 메모리 측정**, 반복 규칙 말일 처리, 종료 코드, 스택트레이스 비노출.
-
----
-
-## 보너스 과제
-
-| # | 내용 | 상태 |
-|---|---|:--:|
-| 1 | **백업** — `backup` 이 타임스탬프 붙은 폴더로 복사 | ✅ |
-| 2 | **반복 내역** — `recurring` 으로 월세·월급 자동 생성 | ✅ |
-| 3 | **테이블 정렬** — 외부 라이브러리 없이 한글 폭까지 계산 | ✅ |
-| 4 | **저장 원자성** — 임시 파일 + `os.replace` | ✅ |
-
-보너스 3은 한글 때문에 조금 손이 갑니다.
-`len('점심')` 은 2지만 터미널에서는 **4칸**을 씁니다.
-`unicodedata.east_asian_width` 로 글자마다 폭을 재서 칸을 맞춥니다.
-
-보너스 2의 `recurring apply` 는 **31일 규칙을 2월에 적용하면 말일로 당깁니다.**
-2024년 2월이면 29일이 됩니다 (윤년).
+**스트리밍 메모리 측정**, 종료 코드, 스택트레이스 비노출.
 
 ---
 

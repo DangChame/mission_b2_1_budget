@@ -26,7 +26,6 @@ from .errors import ConflictError, NotFoundError, ValidationError
 from .models import (
     TX_TYPES,
     Budget,
-    RecurringRule,
     Transaction,
     is_valid_date,
     is_valid_month,
@@ -401,63 +400,3 @@ class BudgetService:
                 except ValidationError as exc:
                     skipped.append(f"{lineno}번째 줄: {exc.reason}")
         return imported, len(skipped), skipped
-
-    # ==================================================================
-    # 반복 내역 (보너스 2)
-    # ==================================================================
-    def add_recurring(self, *, day: str | int, type: str, category: str,
-                      amount: str | int, memo: str = "",
-                      tags: str | None = None) -> RecurringRule:
-        try:
-            day_value = int(day)
-        except ValueError:
-            raise ValidationError(f"일자는 숫자여야 합니다: {day!r}", "1~31 사이 숫자") from None
-        if not 1 <= day_value <= 31:
-            raise ValidationError(f"일자는 1~31 이어야 합니다: {day_value}", "예: --day 25")
-
-        rule = RecurringRule(
-            id=self.repo.next_recurring_id(),
-            day=day_value,
-            type=self.validate_type(type),
-            amount=self.validate_amount(amount),
-            category=self.validate_category(category),
-            memo=memo or "",
-            tags=self.parse_tags(tags),
-        )
-        self.repo.add_recurring(rule)
-        return rule
-
-    def apply_recurring(self, month: str) -> list[Transaction]:
-        """반복 규칙을 특정 월에 실제 거래로 만들어 넣는다.
-
-        같은 규칙이 같은 달에 두 번 들어가지 않도록, 메모에 규칙 id 를 적어두고
-        이미 있으면 건너뛴다.
-        """
-        self.validate_month(month)
-        rules = list(self.repo.iter_recurring())
-        if not rules:
-            raise NotFoundError("등록된 반복 규칙이 없습니다.",
-                                "recurring add --day 25 --type expense --category rent --amount 500000")
-
-        already = {t.memo for t in self.repo.iter_transactions() if t.month == month}
-        created: list[Transaction] = []
-
-        import calendar
-        last_day = calendar.monthrange(int(month[:4]), int(month[5:7]))[1]
-
-        for rule in rules:
-            marker = f"[{rule.id}] {rule.memo}".strip()
-            if marker in already:
-                continue      # 이미 이번 달에 만들었다
-            # 31일 규칙인데 2월이면 그 달의 마지막 날로 당긴다
-            day = min(rule.day, last_day)
-            tx = self.add_transaction(
-                date=f"{month}-{day:02d}",
-                type=rule.type,
-                category=rule.category,
-                amount=rule.amount,
-                memo=marker,
-                tags=rule.tags,
-            )
-            created.append(tx)
-        return created

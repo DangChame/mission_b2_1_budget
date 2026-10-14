@@ -6,7 +6,6 @@
     data/transactions.jsonl   거래 내역
     data/categories.jsonl     카테고리
     data/budgets.jsonl        월 예산
-    data/recurring.jsonl      반복 규칙 (보너스 2)
 
 JSONL 을 고른 이유 (CSV 대신)
     JSONL 은 "한 줄에 JSON 하나"다. 파일 전체가 아니라 한 줄만 읽어도 한 건을 복원할 수 있다.
@@ -20,24 +19,21 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from .errors import AppError
-from .models import Budget, Category, RecurringRule, Transaction
+from .models import Budget, Category, Transaction
 
 TRANSACTIONS = "transactions.jsonl"
 CATEGORIES = "categories.jsonl"
 BUDGETS = "budgets.jsonl"
-RECURRING = "recurring.jsonl"
 
 DEFAULT_CATEGORIES = ("food", "transport", "rent", "salary", "etc")
 
 
 class Repository:
-    """파일 네 개를 다루는 창구.
+    """파일 세 개를 다루는 창구.
 
     이 클래스 밖에서는 open() 을 직접 호출하지 않는다.
     저장 방식을 JSONL 에서 SQLite 로 바꾸더라도 이 파일만 고치면 되게 하려는 것이다.
@@ -61,7 +57,7 @@ class Repository:
         """
         created = not self.dir.exists()
         self.dir.mkdir(parents=True, exist_ok=True)
-        for name in (TRANSACTIONS, CATEGORIES, BUDGETS, RECURRING):
+        for name in (TRANSACTIONS, CATEGORIES, BUDGETS):
             path = self.dir / name
             if not path.exists():
                 path.touch()
@@ -231,40 +227,3 @@ class Repository:
             BUDGETS,
             (existing[m].to_dict() for m in sorted(existing)),
         )
-
-    # ------------------------------------------------------------------
-    # 반복 규칙 (보너스 2)
-    # ------------------------------------------------------------------
-    def iter_recurring(self) -> Iterator[RecurringRule]:
-        for raw in self.iter_raw(RECURRING):
-            yield RecurringRule.from_dict(raw)
-
-    def add_recurring(self, rule: RecurringRule) -> None:
-        self.append(RECURRING, rule.to_dict())
-
-    def remove_recurring(self, rule_id: str) -> None:
-        self.rewrite(
-            RECURRING,
-            (r.to_dict() for r in self.iter_recurring() if r.id != rule_id),
-        )
-
-    def next_recurring_id(self) -> str:
-        biggest = 0
-        for raw in self.iter_raw(RECURRING):
-            rid = str(raw.get("id", ""))
-            if rid.startswith("RC-"):
-                try:
-                    biggest = max(biggest, int(rid[3:]))
-                except ValueError:
-                    continue
-        return f"RC-{biggest + 1:06d}"
-
-    # ------------------------------------------------------------------
-    # 백업 (보너스 1)
-    # ------------------------------------------------------------------
-    def backup(self) -> Path:
-        """data 폴더를 통째로 복사한다. 폴더명에 시각을 넣어 덮어쓰지 않게 한다."""
-        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        dest = self.dir.parent / f"{self.dir.name}-backup-{stamp}"
-        shutil.copytree(self.dir, dest)
-        return dest

@@ -19,7 +19,6 @@ from pathlib import Path
 
 from budget_app.cli import main
 from budget_app.errors import ConflictError, NotFoundError, ValidationError
-from budget_app.formatting import display_width, pad, won
 from budget_app.models import Transaction, is_valid_date, is_valid_month
 from budget_app.repository import Repository
 from budget_app.service import BudgetService
@@ -310,10 +309,10 @@ class TestCsv(Base):
 
 
 class TestStorage(Base):
-    def test_저장_파일이_네_개_생긴다(self):
+    def test_저장_파일이_세_개_생긴다(self):
+        """과제 요구사항 3번: 저장 파일 3개 이상으로 분리"""
         names = sorted(p.name for p in self.dir.glob("*.jsonl"))
-        self.assertEqual(names, ["budgets.jsonl", "categories.jsonl",
-                                 "recurring.jsonl", "transactions.jsonl"])
+        self.assertEqual(names, ["budgets.jsonl", "categories.jsonl", "transactions.jsonl"])
 
     def test_기본_카테고리가_들어간다(self):
         self.assertIn("food", self.repo.category_names())
@@ -334,12 +333,6 @@ class TestStorage(Base):
         path = self.dir / "transactions.jsonl"
         path.write_text(path.read_text(encoding="utf-8") + "\n\n", encoding="utf-8")
         self.assertEqual(len(list(self.repo.iter_transactions())), 1)
-
-    def test_백업이_만들어진다(self):
-        self.add("2024-01-01", "expense", "food", 1000)
-        dest = self.repo.backup()
-        self.assertTrue(dest.exists())
-        self.assertTrue((dest / "transactions.jsonl").exists())
 
 
 class TestStreaming(Base):
@@ -371,48 +364,6 @@ class TestStreaming(Base):
         import inspect
         self.assertTrue(inspect.isgeneratorfunction(Repository.iter_raw))
         self.assertTrue(inspect.isgeneratorfunction(Repository.iter_transactions))
-
-
-class TestRecurring(Base):
-    def test_규칙_등록과_적용(self):
-        self.svc.add_recurring(day=25, type="expense", category="rent",
-                               amount=500000, memo="월세")
-        created = self.svc.apply_recurring("2024-04")
-        self.assertEqual(len(created), 1)
-        self.assertEqual(created[0].date, "2024-04-25")
-
-    def test_같은_달에_두_번_적용해도_중복되지_않는다(self):
-        self.svc.add_recurring(day=25, type="expense", category="rent",
-                               amount=500000, memo="월세")
-        self.svc.apply_recurring("2024-04")
-        self.assertEqual(self.svc.apply_recurring("2024-04"), [])
-
-    def test_31일_규칙은_그_달_말일로_당긴다(self):
-        self.svc.add_recurring(day=31, type="expense", category="rent",
-                               amount=1000, memo="말일")
-        created = self.svc.apply_recurring("2024-02")   # 2024는 윤년
-        self.assertEqual(created[0].date, "2024-02-29")
-
-    def test_잘못된_일자(self):
-        with self.assertRaises(ValidationError):
-            self.svc.add_recurring(day=32, type="expense", category="rent", amount=1000)
-
-    def test_규칙이_없으면_오류(self):
-        with self.assertRaises(NotFoundError):
-            self.svc.apply_recurring("2024-04")
-
-
-class TestFormatting(unittest.TestCase):
-    def test_한글은_두_칸(self):
-        self.assertEqual(display_width("점심"), 4)
-        self.assertEqual(display_width("food"), 4)
-
-    def test_폭_맞추기(self):
-        self.assertEqual(display_width(pad("점심", 10)), 10)
-        self.assertEqual(display_width(pad("food", 10)), 10)
-
-    def test_금액_표기(self):
-        self.assertEqual(won(1234567), "1,234,567원")
 
 
 class TestCliExitCode(Base):

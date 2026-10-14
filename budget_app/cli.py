@@ -15,8 +15,7 @@ import argparse
 from pathlib import Path
 
 from .decorators import configure, handle_errors, log_call, timed
-from .errors import AppError, ValidationError
-from .formatting import bar, table, won
+from .errors import ValidationError
 from .models import TX_TYPES
 from .prompts import ask
 from .repository import Repository
@@ -85,7 +84,7 @@ def cmd_update(svc: BudgetService, args: argparse.Namespace) -> None:
 @timed
 def cmd_delete(svc: BudgetService, args: argparse.Namespace) -> None:
     tx = svc.delete_transaction(args.id)
-    print(f"[삭제 완료] id={tx.id} | {tx.date} | {tx.category} | {won(tx.amount)}")
+    print(f"[삭제 완료] id={tx.id} | {tx.date} | {tx.category} | {tx.amount}원")
 
 
 @log_call
@@ -97,30 +96,29 @@ def cmd_summary(svc: BudgetService, args: argparse.Namespace) -> None:
         print(f"{s['month']} 데이터 없음")
         return
 
-    print(f"총 수입: {won(int(s['income']))}")
-    print(f"총 지출: {won(int(s['expense']))}")
-    print(f"잔액: {won(int(s['balance']))}")
+    print(f"총 수입: {s['income']}원")
+    print(f"총 지출: {s['expense']}원")
+    print(f"잔액: {s['balance']}원")
 
     if s["budget"] is not None:
         usage = float(s["usage"] or 0)
-        print(f"예산: {won(int(s['budget']))} (사용률 {usage * 100:.1f}%)")
-        print(f"       [{bar(usage)}]")
+        print(f"예산: {s['budget']}원 (사용률 {usage * 100:.1f}%)")
         if s["over"]:
             over = int(s["expense"]) - int(s["budget"])
-            print(f"[경고] 예산을 {won(over)} 초과했습니다.")
+            print(f"[경고] 예산을 {over}원 초과했습니다.")
 
     top = list(s["top"])  # type: ignore[arg-type]
     if top:
         print(f"\n지출 TOP {len(top)}")
         for rank, (category, total) in enumerate(top, 1):
-            print(f"{rank}) {category} {won(total)}")
+            print(f"{rank}) {category} {total}원")
 
 
 @log_call
 @timed
 def cmd_budget_set(svc: BudgetService, args: argparse.Namespace) -> None:
     b = svc.set_budget(args.month, args.amount)
-    print(f"[저장 완료] {b.month} 예산 {won(b.amount)}")
+    print(f"[저장 완료] {b.month} 예산 {b.amount}원")
 
 
 @log_call
@@ -130,9 +128,8 @@ def cmd_budget_list(svc: BudgetService, args: argparse.Namespace) -> None:
     if not rows:
         print("등록된 예산이 없습니다.")
         return
-    print(table(["월", "예산"],
-                [[b.month, won(b.amount)] for b in sorted(rows, key=lambda x: x.month)],
-                ["left", "right"]))
+    for b in sorted(rows, key=lambda x: x.month):
+        print(f"{b.month} | {b.amount}원")
 
 
 @log_call
@@ -180,67 +177,18 @@ def cmd_import(svc: BudgetService, args: argparse.Namespace) -> None:
         print(f"  건너뜀 - {reason}")
 
 
-@log_call
-@timed
-def cmd_backup(svc: BudgetService, args: argparse.Namespace) -> None:
-    dest = svc.repo.backup()
-    print(f"[백업 완료] {dest}")
-
-
-@log_call
-@timed
-def cmd_recurring_add(svc: BudgetService, args: argparse.Namespace) -> None:
-    rule = svc.add_recurring(day=args.day, type=args.type, category=args.category,
-                             amount=args.amount, memo=args.memo, tags=args.tags)
-    print(f"[저장 완료] id={rule.id} 매월 {rule.day}일 {rule.category} {won(rule.amount)}")
-
-
-@log_call
-@timed
-def cmd_recurring_list(svc: BudgetService, args: argparse.Namespace) -> None:
-    rows = list(svc.repo.iter_recurring())
-    if not rows:
-        print("등록된 반복 규칙이 없습니다.")
-        return
-    print(table(["id", "일자", "타입", "카테고리", "금액", "메모"],
-                [[r.id, f"매월 {r.day}일", r.type, r.category, won(r.amount), r.memo]
-                 for r in rows],
-                ["left", "right", "left", "left", "right", "left"]))
-
-
-@log_call
-@timed
-def cmd_recurring_remove(svc: BudgetService, args: argparse.Namespace) -> None:
-    svc.repo.remove_recurring(args.id)
-    print(f"[삭제 완료] id={args.id}")
-
-
-@log_call
-@timed
-def cmd_recurring_apply(svc: BudgetService, args: argparse.Namespace) -> None:
-    created = svc.apply_recurring(args.month)
-    if not created:
-        print(f"{args.month} 에 새로 만들 내역이 없습니다. (이미 반영됨)")
-        return
-    print(f"[완료] {len(created)}건 생성")
-    _print_transactions(created)
-
-
 # ======================================================================
 # 출력 도우미
+# 과제 PDF 「8. 결과 예시」와 같은 형식으로 찍는다.
+#   TX-000012 | 2024-01-15 | expense | food | 15000 | 점심
 # ======================================================================
 
 def _print_transactions(rows: list) -> None:
     if not rows:
         print("조건에 맞는 내역이 없습니다.")
         return
-    print(table(
-        ["id", "날짜", "타입", "카테고리", "금액", "메모", "태그"],
-        [[t.id, t.date, t.type, t.category, won(t.amount), t.memo, ",".join(t.tags)]
-         for t in rows],
-        ["left", "left", "left", "left", "right", "left", "left"],
-    ))
-    print(f"\n{len(rows)}건")
+    for t in rows:
+        print(f"{t.id} | {t.date} | {t.type} | {t.category} | {t.amount} | {t.memo}")
 
 
 # ======================================================================
@@ -342,30 +290,6 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("import", help="CSV 가져오기")
     p.add_argument("--from", dest="date_from", required=True, metavar="FILE")
     p.set_defaults(func=cmd_import)
-
-    # --- backup (보너스 1) ---
-    p = sub.add_parser("backup", help="data 폴더를 타임스탬프 붙여 백업")
-    p.set_defaults(func=cmd_backup)
-
-    # --- recurring (보너스 2) ---
-    p = sub.add_parser("recurring", help="매달 반복되는 내역 규칙")
-    rsub = p.add_subparsers(dest="sub", metavar="<add|list|remove|apply>")
-    q = rsub.add_parser("add", help="반복 규칙 추가")
-    q.add_argument("--day", required=True, help="매월 며칠 (1~31)")
-    q.add_argument("--type", required=True, choices=list(TX_TYPES))
-    q.add_argument("--category", required=True)
-    q.add_argument("--amount", required=True)
-    q.add_argument("--memo", default="")
-    q.add_argument("--tags", default=None)
-    q.set_defaults(func=cmd_recurring_add)
-    q = rsub.add_parser("list", help="반복 규칙 목록")
-    q.set_defaults(func=cmd_recurring_list)
-    q = rsub.add_parser("remove", help="반복 규칙 삭제")
-    q.add_argument("--id", required=True)
-    q.set_defaults(func=cmd_recurring_remove)
-    q = rsub.add_parser("apply", help="특정 월에 반복 내역 생성")
-    q.add_argument("--month", required=True, metavar="YYYY-MM")
-    q.set_defaults(func=cmd_recurring_apply)
 
     return parser
 
