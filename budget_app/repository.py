@@ -102,7 +102,7 @@ class Repository:
                     # 나머지 줄은 멀쩡하므로 계속 읽는다.
                     raise AppError(
                         f"{filename} {lineno}번째 줄을 읽을 수 없습니다.",
-                        "파일이 손상되었을 수 있습니다. backup 명령으로 만든 백업을 확인하세요.",
+                        "파일이 손상되었을 수 있습니다. 해당 줄을 지우거나 고친 뒤 다시 실행하세요.",
                     )
 
     def append(self, filename: str, row: dict[str, Any]) -> None:

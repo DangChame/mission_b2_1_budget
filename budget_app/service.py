@@ -348,6 +348,10 @@ class BudgetService:
 
         # newline="" 은 csv 모듈이 줄바꿈을 직접 다루게 하려는 것.
         # 이걸 빼면 윈도우에서 줄 사이에 빈 줄이 하나씩 생긴다.
+        #
+        # 저장되는 줄바꿈은 CRLF(\r\n)다. 파이썬 csv 모듈의 기본값이고
+        # CSV 표준(RFC 4180)이 CRLF로 정하고 있기 때문이다. 엑셀도 이걸 기대한다.
+        # 터미널에서 cat 으로 보면 ^M 처럼 보일 수 있지만 정상이다.
         with path.open("w", encoding="utf-8", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=list(CSV_COLUMNS))
             writer.writeheader()

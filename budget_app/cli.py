@@ -300,7 +300,7 @@ def _run(argv: list[str] | None) -> None:
     args = parser.parse_args(argv)
 
     if not getattr(args, "func", None):
-        # 명령을 안 줬거나 budget/category/recurring 만 주고 하위 명령을 빼먹은 경우
+        # 명령을 안 줬거나 budget/category 만 주고 하위 명령을 빼먹은 경우
         parser.print_help()
         raise ValidationError("실행할 명령을 지정해주세요.",
                               "사용 가능한 명령은 위 목록을 참고하세요.")
