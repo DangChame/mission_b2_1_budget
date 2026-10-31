@@ -171,10 +171,15 @@ def cmd_export(svc: BudgetService, args: argparse.Namespace) -> None:
 @log_call
 @timed
 def cmd_import(svc: BudgetService, args: argparse.Namespace) -> None:
-    imported, skipped, reasons = svc.import_csv(args.date_from)
-    print(f"[완료] imported={imported}, skipped={skipped}")
+    imported, skipped, reasons = svc.import_csv(args.date_from, dry_run=args.dry_run)
+    if args.dry_run:
+        print(f"[검사] 넣을 수 있음 {imported}건 / 건너뜀 {skipped}건  (저장하지 않음)")
+    else:
+        print(f"[완료] imported={imported}, skipped={skipped}")
     for reason in reasons:
         print(f"  건너뜀 - {reason}")
+    if args.dry_run and skipped:
+        print("  → 파일을 고친 뒤 --dry-run 없이 다시 실행하세요.")
 
 
 # ======================================================================
@@ -289,6 +294,8 @@ def build_parser() -> argparse.ArgumentParser:
     # --- import ---
     p = sub.add_parser("import", help="CSV 가져오기")
     p.add_argument("--from", dest="date_from", required=True, metavar="FILE")
+    p.add_argument("--dry-run", dest="dry_run", action="store_true",
+                   help="실제로 넣지 않고 몇 줄이 걸리는지 검사만 한다")
     p.set_defaults(func=cmd_import)
 
     return parser

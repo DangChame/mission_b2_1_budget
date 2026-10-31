@@ -103,6 +103,19 @@ class BudgetService:
     # ==================================================================
     # 거래
     # ==================================================================
+    def check_row(self, *, date: str, type: str, category: str,
+                  amount: str | int, memo: str = "",
+                  tags: str | list[str] | None = None) -> None:
+        """값이 규칙에 맞는지만 확인하고 저장은 하지 않는다.
+
+        import 의 --dry-run 에서 쓴다. add_transaction 과 **같은 검증**을 거치므로
+        여기서 통과한 줄은 실제로 넣어도 통과한다.
+        """
+        self.validate_type(type)
+        self.validate_date(date)
+        self.validate_amount(amount)
+        self.validate_category(category)
+
     def add_transaction(self, *, date: str, type: str, category: str,
                         amount: str | int, memo: str = "",
                         tags: str | list[str] | None = None) -> Transaction:
@@ -366,14 +379,24 @@ class BudgetService:
                 })
         return len(rows)
 
-    def import_csv(self, src_path: str | Path) -> tuple[int, int, list[str]]:
+    def import_csv(self, src_path: str | Path, *,
+                   dry_run: bool = False) -> tuple[int, int, list[str]]:
         """CSV 를 읽어 거래를 일괄 등록한다.
+
+        Args:
+            dry_run: True 면 **검사만 하고 저장하지 않는다.**
 
         Returns:
             (등록 건수, 건너뛴 건수, 건너뛴 이유 목록)
+            dry_run 일 때 첫 값은 "넣을 수 있는 건수" 를 뜻한다.
 
         한 줄이 잘못됐다고 전체를 멈추지 않는다.
-        잘못된 줄만 건너뛰고 이유를 모아 마지막에 보여준다.
+        잘못된 줄만 건너뛰고 이유를 모아 마지막에 보여준다. (부분 수용 + 리포트)
+
+        전부 롤백하지 않는 이유
+            999줄이 멀쩡한데 1줄 때문에 다 버리는 건 손해가 크다.
+            대신 --dry-run 으로 **먼저 검사해볼 수 있게** 해서,
+            걸리는 줄이 많으면 사용자가 넣지 않기로 직접 고를 수 있다.
         """
         path = Path(src_path)
         if not path.exists():
@@ -391,15 +414,19 @@ class BudgetService:
                     f"필수 열: {', '.join(CSV_REQUIRED)}",
                 )
             for lineno, row in enumerate(reader, 2):   # 2부터인 이유: 1번 줄은 머리글
+                fields = dict(
+                    date=(row.get("date") or "").strip(),
+                    type=(row.get("type") or "").strip(),
+                    category=(row.get("category") or "").strip(),
+                    amount=(row.get("amount") or "").strip(),
+                    memo=(row.get("memo") or "").strip(),
+                    tags=(row.get("tags") or "").strip(),
+                )
                 try:
-                    self.add_transaction(
-                        date=(row.get("date") or "").strip(),
-                        type=(row.get("type") or "").strip(),
-                        category=(row.get("category") or "").strip(),
-                        amount=(row.get("amount") or "").strip(),
-                        memo=(row.get("memo") or "").strip(),
-                        tags=(row.get("tags") or "").strip(),
-                    )
+                    if dry_run:
+                        self.check_row(**fields)      # 검사만
+                    else:
+                        self.add_transaction(**fields)
                     imported += 1
                 except ValidationError as exc:
                     skipped.append(f"{lineno}번째 줄: {exc.reason}")

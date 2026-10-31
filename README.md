@@ -38,7 +38,7 @@ python3 -m budget_app --help
 처음 실행하면 `data/` 폴더와 저장 파일이 자동으로 만들어지고, 기본 카테고리 5개가 들어갑니다.
 
 ```bash
-python3 -m unittest discover -s tests -t .    # 테스트 53개
+python3 -m unittest discover -s tests -t .    # 테스트 55개
 ```
 
 ---
@@ -58,7 +58,7 @@ python3 -m unittest discover -s tests -t .    # 테스트 53개
 | `budget set --month --amount` / `budget list` | 월 예산 |
 | `category add / list / remove` | 카테고리 관리 |
 | `export --out FILE --month` | CSV 내보내기 |
-| `import --from FILE` | CSV 가져오기 |
+| `import --from FILE [--dry-run]` | CSV 가져오기 · `--dry-run` 은 **검사만** |
 
 공통 옵션 — `--data-dir DIR` (저장 폴더 변경), `--verbose` (실행 시간 표시)
 
@@ -83,7 +83,8 @@ python3 -m budget_app search --tag meal --q 점심
 python3 -m budget_app budget set --month 2024-01 --amount 500000
 python3 -m budget_app summary --month 2024-01 --top 3
 python3 -m budget_app export --out 2024-01.csv --month 2024-01
-python3 -m budget_app import --from 2024-01.csv
+python3 -m budget_app import --from 2024-01.csv --dry-run   # 먼저 검사
+python3 -m budget_app import --from 2024-01.csv              # 실제로 넣기
 ```
 
 ```
@@ -121,7 +122,7 @@ budget_app/
   prompts.py       대화형 입력 + 재입력
   errors.py        사용자에게 보여줄 오류 정의
 tests/
-  test_budget_app.py   테스트 53개
+  test_budget_app.py   테스트 55개
 ```
 
 계층을 이렇게 잡았습니다.
@@ -171,6 +172,28 @@ data/app.log               실행 로그
 | 필드 추가 | 그 줄에만 키 추가 | 머리글 전체 변경 |
 
 CSV 는 `import` / `export` 의 **교환 포맷**으로만 씁니다. 엑셀에서 열어야 하니까요.
+
+### 깨진 행이 섞이면 — 부분 수용 + 리포트
+
+한 줄이 잘못됐다고 전체를 멈추지 않습니다. **되는 건 넣고, 안 된 건 몇 번째 줄이 왜 걸렸는지 알려줍니다.**
+
+전부 롤백하지 않는 이유는, **999줄이 멀쩡한데 1줄 때문에 다 버리는 손해가 더 크기** 때문입니다.
+대신 `--dry-run` 으로 **넣기 전에 먼저 검사**할 수 있게 해서,
+걸리는 줄이 많으면 사용자가 넣지 않기로 직접 고를 수 있습니다.
+
+```
+$ python3 -m budget_app import --from mix.csv --dry-run
+[검사] 넣을 수 있음 2건 / 건너뜀 3건  (저장하지 않음)
+  건너뜀 - 3번째 줄: 날짜 형식이 올바르지 않습니다 (YYYY-MM-DD).
+  건너뜀 - 4번째 줄: 금액은 0보다 커야 합니다. 입력값: -100
+  건너뜀 - 5번째 줄: 등록되지 않은 카테고리입니다: '없는카테고리'
+  → 파일을 고친 뒤 --dry-run 없이 다시 실행하세요.
+```
+
+`--dry-run` 은 `add` 와 **똑같은 검증**을 거칩니다. 검사에서 통과한 줄은 실제로 넣어도 통과합니다.
+(`tests/test_budget_app.py` 의 `test_dry_run_결과가_실제_결과와_같다` 가 이걸 확인합니다)
+
+머리글에 필수 열이 없으면 다릅니다. **파일 전체가 잘못된 것**이라 한 줄도 넣지 않고 바로 오류를 냅니다.
 
 CSV 스키마는 과제 요구사항대로 고정했습니다. UTF-8, 머리글 포함.
 
@@ -280,7 +303,7 @@ python3 -m unittest discover -s tests -t .
 ```
 
 ```
-Ran 53 tests in 0.32s
+Ran 55 tests in 0.32s
 OK
 ```
 
@@ -288,7 +311,7 @@ OK
 
 검사하는 것 — 날짜·금액·타입·카테고리 검증, 윤년, id 채번, 최신순 정렬,
 검색 조건 조합, 예산 초과 감지, 카테고리 삭제 규칙, CSV 왕복(export→import),
-**스트리밍 메모리 측정**, 종료 코드, 스택트레이스 비노출.
+**스트리밍 메모리 측정**, **`--dry-run` 이 저장하지 않는지**, 종료 코드, 스택트레이스 비노출.
 
 ---
 

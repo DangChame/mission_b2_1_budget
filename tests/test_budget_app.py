@@ -296,6 +296,38 @@ class TestCsv(Base):
         with self.assertRaises(NotFoundError):
             self.svc.import_csv(self.dir / "nope.csv")
 
+    def test_dry_run_은_저장하지_않는다(self):
+        src = self.dir / "dry.csv"
+        src.write_text(
+            "date,type,category,amount,memo,tags\n"
+            "2024-03-01,expense,food,12000,커피,\n"
+            "2024-13-99,expense,food,5000,날짜틀림,\n",
+            encoding="utf-8",
+        )
+        before = len(list(self.repo.iter_transactions()))
+        ok, skipped, reasons = self.svc.import_csv(src, dry_run=True)
+        after = len(list(self.repo.iter_transactions()))
+
+        self.assertEqual((ok, skipped), (1, 1))     # 넣을 수 있는 건 1건
+        self.assertEqual(before, after)             # 실제로는 하나도 안 들어갔다
+        self.assertIn("3번째 줄", reasons[0])
+
+    def test_dry_run_결과가_실제_결과와_같다(self):
+        """검사에서 통과한 줄은 실제로 넣어도 통과해야 한다."""
+        src = self.dir / "same.csv"
+        src.write_text(
+            "date,type,category,amount,memo,tags\n"
+            "2024-03-01,expense,food,12000,커피,\n"
+            "2024-03-02,expense,food,-5,음수,\n"
+            "2024-03-03,income,salary,3000,월급,\n",
+            encoding="utf-8",
+        )
+        dry = self.svc.import_csv(src, dry_run=True)
+        real = self.svc.import_csv(src, dry_run=False)
+        self.assertEqual(dry[0], real[0])           # 건수가 같고
+        self.assertEqual(dry[1], real[1])
+        self.assertEqual(dry[2], real[2])           # 이유도 같다
+
     def test_export_한_뒤_import_하면_같은_내용(self):
         """내보낸 걸 다시 읽어들이면 건수와 값이 보존되는가 (왕복 검사)"""
         self.add("2024-01-15", "expense", "food", 15000, "점심", "meal,lunch")
